@@ -1,0 +1,47 @@
+\section{Results}
+
+\subsection{Experiments on Synthetic Data}
+
+We first replicated the experiments from \cite{changepoint} on synthetic data. The paper proposes six scenarios with varying levels of noise and outlier intensity. We tested four loss functions: Huber, Biweight, $\ell_2$, and $\ell_1$. Using the values of $\beta$ and $K$ recommended by the paper, we obtained mixed results depending on the loss function and the scenario.
+
+The Huber loss yields overall satisfying results, except on scenarios with extreme outliers. We observe an over-segmentation phenomenon: although the penalty $\beta$ is high, the algorithm detects too many changepoints. This is because the Huber loss is unbounded and grows linearly at infinity. As noted by \cite{changepoint}, "for unbounded loss functions, such as [...] Huber loss, a penalised cost approach will place an outlier in a segment on its own if that outlier is sufficiently extreme". We also observe an under-segmentation problem on noisy scenarios: the algorithm misses some changepoints because it becomes more costly to pay the penalty $\beta$ than to absorb the outliers in the loss.
+
+The Biweight loss yields poor results on several scenarios. The algorithm detects very few changepoints because $\beta$ takes too large values caused by too much noise in the data. We tried playing with parameters $\beta$ and $K$ but could not obtain satisfying results. The $\ell_1$ loss also yields unsatisfying results with under-segmentation.
+
+Interestingly, the $\ell_2$ loss with a manually tuned $\beta$ (setting $\beta = 3.5 \cdot 2\hat{\sigma}^2 \log(n)$) yields the best results on synthetic data. From a practical perspective, using the $\ell_2$ loss is simpler than using the Biweight or Huber loss as we only need to tune one parameter instead of two.
+
+\subsection{Sensitivity Analysis: Influence of $\beta$ on the Number of Changepoints}
+
+We conducted a sensitivity analysis of the number of changepoints as a function of $\beta$, the penalty parameter. We plotted the variation of the number of detected changepoints for each loss function depending on the scaling factor of the penalty parameter (with log-log axes). For instance, using the Huber loss on the T5YIFR series: with the $\beta$ recommended by the paper, the algorithm detects approximately $10^3$ changepoints; with $10 \times \beta$, approximately 100 changepoints; with $1000 \times \beta$, approximately 5 changepoints.
+
+This analysis reveals that the Huber and $\ell_2$ losses are easier to tune as they are less sensitive to small variations in the scaling factor of $\beta$. The Biweight loss is more sensitive: a small change in $\beta$ can lead to a large change in the number of detected changepoints. This is a practical advantage of the Huber and $\ell_2$ losses over the Biweight loss.
+
+\subsection{Application to Macroeconomic Time Series}
+
+We applied the RFPOP algorithm to several market-based macroeconomic time series extracted from the FRED database: 5-year inflation expectations (T5YIFR), 10-year inflation break-even (T10YIE), AAA credit spread (AAA10Y), yield curve slope (T10Y2Y), VIX index (VIXCLS), and TED spread (TEDRATE).
+
+\paragraph{Important observation.} When running the algorithm with values of $\beta$ and $K$ recommended by the paper, we systematically observe over-segmentation on real data. The algorithm detects hundreds of changepoints instead of the expected few structural breaks. We therefore had to manually and incrementally adjust the penalty parameter to obtain economically meaningful results.
+
+\paragraph{Inflation expectations (T5YIFR, T10YIE).} All three loss functions successfully identify the major eras of recent US monetary history: the structural break of 2014 (shift to a low-inflation regime) and the inflationary shock of 2021 (post-Covid inflation and Ukraine war). The $\ell_2$ and Huber losses also detect the 2008 Global Financial Crisis and the 2020 COVID shock as distinct regimes, which makes sense from an investor's perspective. The Biweight loss treats these crashes as outliers rather than structural changes, providing a view that filters out market panic to focus on fundamental shifts. This interpretation aligns with a monetary policy evaluation perspective.
+
+\paragraph{Credit spread (AAA10Y).} The algorithms successfully segment the last 20 years of credit risk history: the post-Dotcom risk aversion (2000-2004), the credit boom with historically low spreads (2004-2007), the crisis and post-crisis era with elevated spreads (2008-2016), and the modern low-spread era (2017-present). The Biweight model is the only one to identify a specific regime change after 2024, which has been commented on in recent financial literature.
+
+\paragraph{Yield curve (T10Y2Y).} All algorithms give similar results and correctly identify the post-Dotcom steepening (2000-2003), the pre-crisis inversion (2004-2007), the ZIRP era with a steep curve (2008-2016), and the great inversion of 2022-present.
+
+\paragraph{VIX and TED spread.} These series reveal a limitation of the robust loss functions. The VIX is an indicator where the outliers are the signal: the massive spikes of 2008 (GFC) and 2020 (COVID) represent the primary regimes of interest. By treating these extreme values as outliers, the Biweight loss produces economically meaningless results, averaging the panic of 2008 with the calm of 2017. Similarly, on the TED spread, the Biweight loss fails to properly identify the 2008-2009 crisis. The Huber and $\ell_2$ losses perform much better on these series.
+
+\subsection{Cross-Validation and Elbow Method}
+
+We implemented a cross-validation procedure to automatically tune $\beta$ and $K$. The cross-validation minimizes a reconstruction error on held-out data. Results are mixed: cross-validation works relatively well for the Biweight loss but yields poor results for the Huber and $\ell_2$ losses, often resulting in over-segmentation.
+
+We also implemented an elbow method to find the optimal number of changepoints. We plot the number of changepoints as a function of $\beta$ and look for a plateau where the number of changepoints stabilizes. This method provides a more interpretable way to select the penalty parameter than pure cross-validation.
+
+\subsection{Discussion}
+
+Our experiments validate several hypotheses from \cite{changepoint} but also reveal some limitations.
+
+\paragraph{When the method works well.} The RFPOP algorithm successfully detects economically meaningful structural breaks in macroeconomic time series. All detected changepoints align with known historical events: the 2008 financial crisis, the 2014 shift to low inflation, the 2020 COVID shock, and the 2021-2022 inflation surge. The method is particularly effective when the goal is to identify long-term regime changes while ignoring short-term noise.
+
+\paragraph{When the method struggles.} The recommended values of $\beta$ and $K$ from the paper do not generalize well to real data. We systematically had to increase $\beta$ by a factor of 10 to 1000 to obtain meaningful results. The Biweight loss is ill-suited for series where extreme values represent the primary regime of interest (VIX, TED spread). Moreover, we observed that the method is sensitive to consecutive outliers: when several extreme values occur in sequence (as in a financial crisis), the algorithm may struggle to determine whether this represents a regime change or a cluster of outliers.
+
+\paragraph{Practical recommendations.} Based on our experiments, we recommend using the $\ell_2$ loss with a manually tuned $\beta$ as a starting point. The $\ell_2$ loss is simpler (one parameter instead of two), more interpretable, and yields results comparable to the Huber loss. For series where the goal is to filter out market panic and focus on long-term trends, the Biweight loss can be useful, but it requires careful tuning and should be avoided on series where extreme values carry important information.
